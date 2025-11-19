@@ -16,7 +16,7 @@ import java.util.concurrent.*;
 public class PrimitiveRunner {
 
     public enum Mode {
-        TRIANGLE, LINE, BEZIER, COMBO
+        TRIANGLE, LINE, BEZIER, RECT, POLYLINE, COMBO
     }
 
     private final RgbaImage target;
@@ -133,33 +133,50 @@ public class PrimitiveRunner {
             ThreadLocalRandom rnd = ThreadLocalRandom.current();
 
             Shape randomShape;
-            int type;
+            Mode currentMode = mode;
 
-            // Determine shape type based on selected Mode
-            if (mode == Mode.TRIANGLE) type = 0;
-            else if (mode == Mode.LINE) type = 1;
-            else if (mode == Mode.BEZIER) type = 2;
-            else { // Mode.COMBO
-                type = rnd.nextInt(3); // Randomly pick 0=Triangle, 1=Line, 2=Bezier
+            // If COMBO, pick a random specific mode for this shape
+            if (currentMode == Mode.COMBO) {
+                int pick = rnd.nextInt(5);
+                if (pick == 0) currentMode = Mode.TRIANGLE;
+                else if (pick == 1) currentMode = Mode.LINE;
+                else if (pick == 2) currentMode = Mode.BEZIER;
+                else if (pick == 3) currentMode = Mode.RECT;
+                else currentMode = Mode.POLYLINE;
             }
 
-            if (type == 0) {
+            if (currentMode == Mode.TRIANGLE) {
                 Triangle t = new Triangle();
                 t.x1 = rnd.nextDouble(target.width); t.y1 = rnd.nextDouble(target.height);
                 t.x2 = rnd.nextDouble(target.width); t.y2 = rnd.nextDouble(target.height);
                 t.x3 = rnd.nextDouble(target.width); t.y3 = rnd.nextDouble(target.height);
                 randomShape = t;
-            } else if (type == 1) {
+            } else if (currentMode == Mode.LINE) {
                 double x1 = rnd.nextDouble(target.width); double y1 = rnd.nextDouble(target.height);
                 double x2 = rnd.nextDouble(target.width); double y2 = rnd.nextDouble(target.height);
-                // Random width between 1 and 9
                 randomShape = new Line(x1, y1, x2, y2, 1 + rnd.nextDouble(8));
-            } else {
+            } else if (currentMode == Mode.BEZIER) {
                 double x1 = rnd.nextDouble(target.width); double y1 = rnd.nextDouble(target.height);
                 double cx = rnd.nextDouble(target.width); double cy = rnd.nextDouble(target.height);
                 double x2 = rnd.nextDouble(target.width); double y2 = rnd.nextDouble(target.height);
-                // Random width between 1 and 9
                 randomShape = new QuadraticBezier(x1, y1, cx, cy, x2, y2, 1 + rnd.nextDouble(8));
+            } else if (currentMode == Mode.RECT) {
+                // Start with a random small-ish rectangle
+                double w = 16 + rnd.nextDouble(32);
+                double h = 16 + rnd.nextDouble(32);
+                double x = rnd.nextDouble(target.width);
+                double y = rnd.nextDouble(target.height);
+                double angle = rnd.nextDouble(360);
+                randomShape = new RotatedRectangle(x, y, w, h, angle);
+            } else { // POLYLINE
+                // Start with a random 4-point polyline
+                Polyline p = new Polyline(4);
+                for (int i = 0; i < 4; i++) {
+                    p.xPoints[i] = rnd.nextDouble(target.width);
+                    p.yPoints[i] = rnd.nextDouble(target.height);
+                }
+                p.width = 1 + rnd.nextDouble(4);
+                randomShape = p;
             }
 
             // Run Hill Climbing optimization (1000 mutations per shape)

@@ -1,18 +1,18 @@
 # **Primitive (Java Port)**
 
-A Java port of Michael Fogleman's [primitive](https://github.com/fogleman/primitive). This project reproduces images using geometric primitives (triangles, lines, curves) by hill-climbing optimization.
+A high-performance Java port of Michael Fogleman's [primitive](https://github.com/fogleman/primitive). This project reproduces images using geometric primitives (triangles, lines, curves) by hill-climbing optimization.
 
 It transforms raster images (PNG/JPG) into abstract vector art (SVG) and simplified raster approximations.
 
-## ** Key Features**
+## **Key Features**
 
 * **High Performance**: Designed with a "Zero-Allocation" hot path. Uses a **Structure of Arrays (SoA)** pattern (ScanlineBuffer) to avoid Garbage Collector thrashing during the millions of mutations required for image generation.
 * **Multi-Core Parallelism**: Uses an "embarrassingly parallel" architecture where independent workers race to find the best shape for each step.
-* **Multiple Primitives**: Supports Triangles, Thick Lines, Quadratic Bezier Curves, and a "Combo" mode.
-* **Dual Output**: Generates both a raster preview (.png) and an infinite-resolution vector file (.svg).
+* **Multiple Primitives**: Supports **Triangles**, **Thick Lines**, **Quadratic Bezier Curves**, **Rotated Rectangles**, **Polylines**, and a **Combo** mode.
+* **Dual Output**: Generates both a raster preview (.png) and an infinite-resolution vector file (.svg) automatically.
 * **Analytical Color Solving**: Mathematically calculates the optimal color for every shape to minimize Root Mean Square Error (RMSE), rather than guessing colors randomly.
 
-## **📦 Installation & Requirements**
+## **Installation & Requirements**
 
 ### **Prerequisites**
 
@@ -25,7 +25,7 @@ Clone the repository and build with Maven:
 
 mvn clean package
 
-## **🏃 Usage**
+## **Usage**
 
 ### **Basic Command Line**
 
@@ -38,7 +38,7 @@ java \-jar target/primitive-1.0-SNAPSHOT.jar \<input\_file\> \<output\_file\> \<
 | input\_file | Path to the source image (PNG/JPG). | monalisa.png |
 | output\_file | Path for the result (PNG). An SVG will also be saved with the same name. | output.png |
 | num\_shapes | Number of geometric shapes to generate. | 200 |
-| mode | (Optional) Shape type: TRIANGLE, LINE, BEZIER, COMBO. Default: TRIANGLE | COMBO |
+| mode | (Optional) Shape type: TRIANGLE, LINE, BEZIER, RECT, POLYLINE, COMBO. Default: TRIANGLE | COMBO |
 
 ### **Helper Scripts**
 
@@ -52,10 +52,11 @@ For convenience, use the provided shell scripts:
 **Run with specific Shape Modes:**
 
 \# Usage: ./run\_shapes.sh \[mode\] \[num\_shapes\]  
-./run\_shapes.sh bezier 200  
+./run\_shapes.sh rect 200  
+./run\_shapes.sh polyline 150  
 ./run\_shapes.sh combo 500
 
-## **🏗 Architecture & Design Choices**
+## **Architecture & Design Choices**
 
 This project is not a direct syntax translation of the Go original; it is re-engineered for the JVM.
 
@@ -72,10 +73,10 @@ The image is constructed one shape at a time (Greedy selection).
 
 1. **Initialization**: A shape is generated with random coordinates.
 2. **Mutation Loop**:
-    * The shape is slightly mutated (vertex moved, width changed).
-    * It is rasterized into the ScanlineBuffer.
-    * The "Energy Delta" (improvement in RMSE) is calculated.
-    * If the mutation improves the image, it is kept; otherwise, it is reverted.
+   * The shape is slightly mutated (vertex moved, width changed).
+   * It is rasterized into the ScanlineBuffer.
+   * The "Energy Delta" (improvement in RMSE) is calculated.
+   * If the mutation improves the image, it is kept; otherwise, it is reverted.
 3. **Commit**: After N iterations (e.g., 1000), the best shape found is permanently drawn onto the canvas.
 
 ### **3\. Concurrency Model**
@@ -86,7 +87,7 @@ The process is parallelized using a ThreadPoolExecutor.
 * Each worker runs an independent Hill Climbing simulation on its own thread-local buffers.
 * The main thread collects all results, picks the global best shape, and commits it.
 
-## ** Project Structure**
+## **📂 Project Structure**
 
 src/main/java/org/trostheide/primitive/  
 ├── Main.java               \# Entry point, CLI argument parsing  
@@ -102,16 +103,19 @@ src/main/java/org/trostheide/primitive/
 ├── Shape.java          \# Interface for geometric primitives  
 ├── Triangle.java       \# Standard triangle rasterizer  
 ├── Line.java           \# Composite shape (2 Triangles)  
-└── QuadraticBezier.java \# Composite shape (Series of Lines)
+├── QuadraticBezier.java \# Composite shape (Series of Lines)  
+├── RotatedRectangle.java \# Composite shape (Rotated Quad)  
+└── Polyline.java       \# Composite shape (Series of Lines)
 
-## ** Todo & Future Roadmap**
+## **Todo & Future Roadmap**
 
 * \[ \] **Live UI**: Add a Swing/JavaFX window to visualize the generation process in real-time.
-* \[ \] **Rotated Rectangles**: Add support for RotatedRectangle primitive.
+* \[x\] **Rotated Rectangles**: Add support for RotatedRectangle primitive.
+* \[x\] **Polylines**: Add support for Polyline primitive.
 * \[ \] **Ellipse Support**: Add Ellipse rasterization logic.
 * \[ \] **Alpha Optimization**: Currently uses a fixed alpha (0.5). Implement a search step to find the optimal alpha value per shape.
 * \[ \] **SIMD Optimization**: Explore Java's Vector API (Incubator) to speed up the RMSE pixel scoring loop.
 
-## ** License**
+## **License**
 
 MIT License (Ported from fogleman/primitive)

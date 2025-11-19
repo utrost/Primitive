@@ -8,7 +8,7 @@ public class Main {
     public static void main(String[] args) {
         if (args.length < 3) {
             System.out.println("Usage: java -jar primitive.jar <input.png> <output.png> <num_shapes> [mode]");
-            System.out.println("Modes: triangle, line, bezier, combo (default: triangle)");
+            System.out.println("Modes: triangle, line, bezier, rect, polyline, combo (default: triangle)");
             System.exit(1);
         }
 
@@ -17,8 +17,7 @@ public class Main {
             File output = new File(args[1]);
             int count = Integer.parseInt(args[2]);
 
-            // Parse Mode (default to TRIANGLE if not specified to match original behavior,
-            // or COMBO if you prefer variety by default. Let's default to TRIANGLE for backward compat)
+            // Parse Mode (default to TRIANGLE if not specified)
             PrimitiveRunner.Mode mode = PrimitiveRunner.Mode.TRIANGLE;
 
             if (args.length > 3) {
@@ -27,6 +26,7 @@ public class Main {
                     mode = PrimitiveRunner.Mode.valueOf(modeStr);
                 } catch (IllegalArgumentException e) {
                     System.err.println("Unknown mode: " + args[3] + ". Using TRIANGLE.");
+                    System.err.println("Available modes: TRIANGLE, LINE, BEZIER, RECT, POLYLINE, COMBO");
                     mode = PrimitiveRunner.Mode.TRIANGLE;
                 }
             }
