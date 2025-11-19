@@ -37,7 +37,8 @@ public class Optimizer {
         // CRITICAL FIX: Reset buffer before initial rasterization
         buffer.reset();
         bestShape.rasterize(buffer, width, height);
-        long bestEnergyDelta = computeEnergyDelta(buffer, bestShape);
+        // FIX: Removed unused 'bestShape' parameter from computeEnergyDelta
+        long bestEnergyDelta = computeEnergyDelta(buffer);
 
         Shape workingShape = bestShape.copy();
 
@@ -49,7 +50,8 @@ public class Optimizer {
             buffer.reset();
             workingShape.rasterize(buffer, width, height);
 
-            long energyDelta = computeEnergyDelta(buffer, workingShape);
+            // FIX: Removed unused 'workingShape' parameter from computeEnergyDelta
+            long energyDelta = computeEnergyDelta(buffer);
 
             if (energyDelta < bestEnergyDelta) {
                 bestEnergyDelta = energyDelta;
@@ -68,7 +70,8 @@ public class Optimizer {
         return new ShapeResult(bestShape, bestEnergyDelta, bestColor);
     }
 
-    private long computeEnergyDelta(ScanlineBuffer scanlines, Shape shape) {
+    // FIX: Removed 'Shape shape' parameter from signature
+    private long computeEnergyDelta(ScanlineBuffer scanlines) {
         if (scanlines.count == 0) return Long.MAX_VALUE;
         int color = computeOptimalColor(scanlines);
         int r = (color >> 16) & 0xFF;
@@ -139,6 +142,8 @@ public class Optimizer {
         return (FIXED_ALPHA << 24) | (r << 16) | (g << 8) | b;
     }
 
-    private long sq(int x) { return x * x; }
+    // FIX: Explicit long cast to silence warning and prevent potential overflow
+    private long sq(int x) { return (long) x * x; }
+
     private int clamp(int val) { return Math.max(0, Math.min(255, val)); }
 }
