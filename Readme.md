@@ -3,7 +3,6 @@
 A high-performance Java port of Michael Fogleman's [primitive](https://github.com/fogleman/primitive). This project reproduces images using geometric primitives (triangles, lines, curves) by hill-climbing optimization.
 
 It transforms raster images (PNG/JPG) into abstract vector art (SVG) and simplified raster approximations.
-It transforms raster images (PNG/JPG) into abstract vector art (SVG) and simplified raster approximations.
 
 ## **How It Works**
 
