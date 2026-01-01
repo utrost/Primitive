@@ -4,6 +4,8 @@ A high-performance Java port of Michael Fogleman's [primitive](https://github.co
 
 It transforms raster images (PNG/JPG) into abstract vector art (SVG) and simplified raster approximations.
 
+[[Screencast Primitive Java.gif](Screencast Primitive Java.webm)]
+
 ## **How It Works**
 
 Imagine a "blind" painter trying to recreate the Mona Lisa by layering thousands of random, semi-transparent triangles onto a canvas. For every single shape added, the computer calculates the mathematical difference between the current canvas and the original photo using a metric called Root Mean Square Error. This metric squares the difference between the color values of corresponding pixels to penalize large errors heavily, condensing the total visual mismatch into a single number. If a random shape makes the canvas look even slightly more like the target by lowering this error score, it is kept; otherwise, it is immediately discarded. This process repeats millions of times and slowly evolves a chaotic mess into a recognizable reproduction through sheer brute force. In computer science, this is called Hill Climbing because the algorithm treats similarity as altitude, blindly taking steps uphill toward a better match and never accepting a step down. It is a greedy optimization method that relies on high-speed trial and error rather than artistic intent to find the perfect image.
@@ -73,7 +75,7 @@ java --add-modules jdk.incubator.vector -cp target/primitive-1.0-SNAPSHOT.jar or
 *   **Process Log**: A live scrolling log shows exactly what the optimizer is doing (scores, time per shape).
 *   **Controls**: Start/Stop button to pause or interrupt generation.
 *   **Configuration**: Easy-to-use sliders and dropdowns for Mode, Shapes, and Workers.
-*   **Export**: Save the current state to PNG at any time.
+*   **Export**: Save the current state to PNG at any time. (Automatically saves a matching .svg vector file!)
 
 ### **Helper Scripts**
 

@@ -133,13 +133,35 @@ public class PrimitiveRunner {
         // Extract hex color from ARGB int
         String hex = String.format("#%02x%02x%02x", (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
         double opacity = 0.5; // Fixed alpha 128 is approx 0.5 opacity
-        svgContent.append(result.shape().toSvg(hex, opacity)).append("\n");
+
+        synchronized (svgContent) {
+            svgContent.append(result.shape().toSvg(hex, opacity)).append("\n");
+        }
     }
 
     private void saveSvg(File file) throws IOException {
-        svgContent.append("</svg>");
+        String content;
+        synchronized (svgContent) {
+            // We append the closing tag temporarily? No, better to just append it to the
+            // string written to file.
+            // But here we are at the end of run, so we can append it permanently?
+            // Wait, if we use getSvgContent(), we need the closing tag too.
+            // Let's NOT append it permanently in saveSvg if we want getSvgContent to be
+            // usable mid-run.
+            // Actually, run() finishes after saveSvg.
+            // Let's just return the content + closing tag in getSvgContent.
+            // And here in saveSvg we can do the same.
+            content = svgContent.toString() + "</svg>";
+        }
+
         try (FileWriter fw = new FileWriter(file)) {
-            fw.write(svgContent.toString());
+            fw.write(content);
+        }
+    }
+
+    public String getSvgContent() {
+        synchronized (svgContent) {
+            return svgContent.toString() + "</svg>";
         }
     }
 

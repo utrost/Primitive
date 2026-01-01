@@ -135,9 +135,30 @@ public class PrimitiveFrame extends JFrame {
         if (result == JFileChooser.APPROVE_OPTION) {
             File file = chooser.getSelectedFile();
             try {
+                // 1. Save PNG
                 lastGeneratedImage.save(file);
-                // Also save SVG if possible? Accessing runner's SVG might be tricky here.
-                // For now just PNG as per RgbaImage capability.
+
+                // 2. Save SVG if available
+                if (currentRunner != null) { // We assume currentRunner matches lastGeneratedImage mostly
+                    String svg = currentRunner.getSvgContent();
+                    if (svg != null && !svg.isEmpty()) {
+                        String absPath = file.getAbsolutePath();
+                        String svgPath;
+                        if (absPath.toLowerCase().endsWith(".png")) {
+                            svgPath = absPath.substring(0, absPath.length() - 4) + ".svg";
+                        } else {
+                            svgPath = absPath + ".svg";
+                        }
+
+                        try (java.io.FileWriter fw = new java.io.FileWriter(svgPath)) {
+                            fw.write(svg);
+                        }
+                        JOptionPane.showMessageDialog(this,
+                                "Saved to " + file.getName() + " and " + new File(svgPath).getName());
+                        return;
+                    }
+                }
+
                 JOptionPane.showMessageDialog(this, "Image saved to " + file.getName());
             } catch (IOException ex) {
                 ex.printStackTrace();
