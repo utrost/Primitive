@@ -4,7 +4,7 @@ A high-performance Java port of Michael Fogleman's [primitive](https://github.co
 
 It transforms raster images (PNG/JPG) into abstract vector art (SVG) and simplified raster approximations.
 
-[[Screencast Primitive Java.gif](Screencast Primitive Java.webm)]
+![Screencast Primitive Java](Screencast%20Primitive%20Java.gif)
 
 ## **How It Works**
 
