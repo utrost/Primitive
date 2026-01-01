@@ -3,6 +3,7 @@ package org.trostheide.primitive.core;
 import org.trostheide.primitive.image.RgbaImage;
 import org.trostheide.primitive.raster.ScanlineBuffer;
 import org.trostheide.primitive.shape.Shape;
+import jdk.incubator.vector.*;
 
 public class Optimizer {
     private final RgbaImage target;
@@ -27,7 +28,8 @@ public class Optimizer {
 
     /**
      * The Hill Climbing Loop.
-     * @param initShape The starting random shape
+     * 
+     * @param initShape  The starting random shape
      * @param iterations How many mutations to attempt (e.g., 1000)
      * @return The best shape found after the iterations
      */
@@ -72,7 +74,8 @@ public class Optimizer {
 
     // FIX: Removed 'Shape shape' parameter from signature
     private long computeEnergyDelta(ScanlineBuffer scanlines) {
-        if (scanlines.count == 0) return Long.MAX_VALUE;
+        if (scanlines.count == 0)
+            return Long.MAX_VALUE;
         int color = computeOptimalColor(scanlines);
         int r = (color >> 16) & 0xFF;
         int g = (color >> 8) & 0xFF;
@@ -80,22 +83,89 @@ public class Optimizer {
 
         long currentError = 0;
         long newError = 0;
+
         int[] yArr = scanlines.y;
         int[] x1Arr = scanlines.x1;
         int[] x2Arr = scanlines.x2;
         int count = scanlines.count;
+
+        // Vector Species (e.g., 256-bit or 512-bit vector of ints)
+        // Typically processes 8 or 16 ints at a time.
+        VectorSpecies<Integer> SPECIES = IntVector.SPECIES_PREFERRED;
+        int loopBound = SPECIES.length();
+
+        // Broadcast target color components to vectors for fast subtraction
+        IntVector vr = IntVector.broadcast(SPECIES, r);
+        IntVector vg = IntVector.broadcast(SPECIES, g);
+        IntVector vb = IntVector.broadcast(SPECIES, b);
+
+        // Constants for alpha blending
+        // We use bit-shifting for 0.5 alpha (128/255) so explicit vectors are not
+        // needed.
 
         for (int i = 0; i < count; i++) {
             int y = yArr[i];
             int xStart = x1Arr[i];
             int xEnd = x2Arr[i];
             int rowOffset = y * width;
-            for (int x = xStart; x < xEnd; x++) {
+            int len = xEnd - xStart;
+
+            int x = xStart;
+            int vectorLoopLimit = xStart + (len & ~(loopBound - 1)); // floor down to multiple of species length
+
+            // -------------------------------------------------------------
+            // SIMD Vector Loop
+            // -------------------------------------------------------------
+            for (; x < vectorLoopLimit; x += loopBound) {
+                int idx = rowOffset + x;
+
+                // Load pixels from arrays
+                IntVector vt = IntVector.fromArray(SPECIES, target.pixels, idx);
+                IntVector vc = IntVector.fromArray(SPECIES, current.pixels, idx);
+
+                // Unpack Target (vt) ARGB
+                IntVector tr = vt.lanewise(VectorOperators.LSHR, 16).lanewise(VectorOperators.AND, 0xFF);
+                IntVector tg = vt.lanewise(VectorOperators.LSHR, 8).lanewise(VectorOperators.AND, 0xFF);
+                IntVector tb = vt.lanewise(VectorOperators.AND, 0xFF);
+
+                // Unpack Current (vc) ARGB
+                IntVector cr = vc.lanewise(VectorOperators.LSHR, 16).lanewise(VectorOperators.AND, 0xFF);
+                IntVector cg = vc.lanewise(VectorOperators.LSHR, 8).lanewise(VectorOperators.AND, 0xFF);
+                IntVector cb = vc.lanewise(VectorOperators.AND, 0xFF);
+
+                // Calc Current Error diffs: sq(tr - cr)
+                IntVector dcr = tr.sub(cr);
+                IntVector dcg = tg.sub(cg);
+                IntVector dcb = tb.sub(cb);
+                currentError += dcr.mul(dcr).add(dcg.mul(dcg)).add(dcb.mul(dcb)).reduceLanesToLong(VectorOperators.ADD);
+
+                // Calc New Blended Color
+                // Using simple shift for alpha 128: (A + B) >> 1 is average.
+                // nr = (r + cr) >> 1
+                IntVector nr = vr.add(cr).lanewise(VectorOperators.LSHR, 1);
+                IntVector ng = vg.add(cg).lanewise(VectorOperators.LSHR, 1);
+                IntVector nb = vb.add(cb).lanewise(VectorOperators.LSHR, 1);
+
+                // Calc New Error diffs: sq(tr - nr)
+                IntVector dnr = tr.sub(nr);
+                IntVector dng = tg.sub(ng);
+                IntVector dnb = tb.sub(nb);
+                newError += dnr.mul(dnr).add(dng.mul(dng)).add(dnb.mul(dnb)).reduceLanesToLong(VectorOperators.ADD);
+            }
+
+            // -------------------------------------------------------------
+            // Tail Loop (Scalar)
+            // -------------------------------------------------------------
+            for (; x < xEnd; x++) {
                 int idx = rowOffset + x;
                 int t = target.pixels[idx];
                 int c = current.pixels[idx];
-                int tr = (t >> 16) & 0xFF; int tg = (t >> 8) & 0xFF; int tb = (t) & 0xFF;
-                int cr = (c >> 16) & 0xFF; int cg = (c >> 8) & 0xFF; int cb = (c) & 0xFF;
+                int tr = (t >> 16) & 0xFF;
+                int tg = (t >> 8) & 0xFF;
+                int tb = (t) & 0xFF;
+                int cr = (c >> 16) & 0xFF;
+                int cg = (c >> 8) & 0xFF;
+                int cb = (c) & 0xFF;
                 currentError += sq(tr - cr) + sq(tg - cg) + sq(tb - cb);
                 int nr = (int) (r * ALPHA_RATIO + cr * INV_ALPHA_RATIO);
                 int ng = (int) (g * ALPHA_RATIO + cg * INV_ALPHA_RATIO);
@@ -123,12 +193,17 @@ public class Optimizer {
                 int idx = rowOffset + x;
                 int t = target.pixels[idx];
                 int c = current.pixels[idx];
-                t_r += (t >> 16) & 0xFF; t_g += (t >> 8) & 0xFF; t_b += (t) & 0xFF;
-                c_r += (c >> 16) & 0xFF; c_g += (c >> 8) & 0xFF; c_b += (c) & 0xFF;
+                t_r += (t >> 16) & 0xFF;
+                t_g += (t >> 8) & 0xFF;
+                t_b += (t) & 0xFF;
+                c_r += (c >> 16) & 0xFF;
+                c_g += (c >> 8) & 0xFF;
+                c_b += (c) & 0xFF;
                 count++;
             }
         }
-        if (count == 0) return 0;
+        if (count == 0)
+            return 0;
         double avgTr = (double) t_r / count;
         double avgTg = (double) t_g / count;
         double avgTb = (double) t_b / count;
@@ -138,12 +213,18 @@ public class Optimizer {
         int r = (int) ((avgTr - avgCr * INV_ALPHA_RATIO) / ALPHA_RATIO);
         int g = (int) ((avgTg - avgCg * INV_ALPHA_RATIO) / ALPHA_RATIO);
         int b = (int) ((avgTb - avgCb * INV_ALPHA_RATIO) / ALPHA_RATIO);
-        r = clamp(r); g = clamp(g); b = clamp(b);
+        r = clamp(r);
+        g = clamp(g);
+        b = clamp(b);
         return (FIXED_ALPHA << 24) | (r << 16) | (g << 8) | b;
     }
 
     // FIX: Explicit long cast to silence warning and prevent potential overflow
-    private long sq(int x) { return (long) x * x; }
+    private long sq(int x) {
+        return (long) x * x;
+    }
 
-    private int clamp(int val) { return Math.max(0, Math.min(255, val)); }
+    private int clamp(int val) {
+        return Math.max(0, Math.min(255, val));
+    }
 }

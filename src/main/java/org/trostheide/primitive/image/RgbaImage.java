@@ -29,7 +29,8 @@ public class RgbaImage {
 
     public static RgbaImage load(File file) throws IOException {
         BufferedImage temp = ImageIO.read(file);
-        if (temp == null) throw new IOException("Could not read image: " + file);
+        if (temp == null)
+            throw new IOException("Could not read image: " + file);
 
         BufferedImage argbImage = new BufferedImage(temp.getWidth(), temp.getHeight(), BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = argbImage.createGraphics();
@@ -59,9 +60,14 @@ public class RgbaImage {
     }
 
     public void save(File file) throws IOException {
+        BufferedImage out = toBufferedImage();
+        ImageIO.write(out, "png", file);
+    }
+
+    public BufferedImage toBufferedImage() {
         BufferedImage out = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         out.setRGB(0, 0, width, height, pixels, 0, width);
-        ImageIO.write(out, "png", file);
+        return out;
     }
 
     @SuppressWarnings("unused") // Kept for future state management

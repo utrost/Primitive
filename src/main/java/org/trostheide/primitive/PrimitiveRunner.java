@@ -16,53 +16,68 @@ import java.util.concurrent.*;
 public class PrimitiveRunner {
 
     public enum Mode {
-        TRIANGLE, LINE, BEZIER, RECT, POLYLINE, COMBO
+        TRIANGLE, LINE, BEZIER, RECT, POLYLINE, ELLIPSE, COMBO
     }
 
     private final RgbaImage target;
     private final RgbaImage current;
-    private final int numShapes;
-    private final int numWorkers;
+    private final PrimitiveConfig config;
     private final ExecutorService executor;
-    private final Mode mode;
+    private OptimizationListener listener;
+    private volatile boolean running = true;
 
     // SVG Building
     private final StringBuilder svgContent = new StringBuilder();
 
-    public PrimitiveRunner(RgbaImage target, int numShapes, Mode mode) {
+    public PrimitiveRunner(RgbaImage target, PrimitiveConfig config) {
         this.target = target;
-        this.numShapes = numShapes;
-        this.mode = mode;
+        this.config = config;
+        this.listener = null; // Optional listener
+
         // Initialize current canvas as blank (opaque white)
         this.current = new RgbaImage(target.width, target.height);
         java.util.Arrays.fill(this.current.pixels, 0xFFFFFFFF);
 
         // Match threads to CPU cores for embarrassingly parallel workload
-        this.numWorkers = Runtime.getRuntime().availableProcessors();
-        this.executor = Executors.newFixedThreadPool(numWorkers);
+        this.executor = Executors.newFixedThreadPool(config.numWorkers());
 
         // Init SVG Header
         svgContent.append(String.format(
                 "<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" width=\"%d\" height=\"%d\">\n",
-                target.width, target.height
-        ));
+                target.width, target.height));
         // Add white background rect to SVG so it looks correct in browsers
         svgContent.append(String.format(
-                "<rect width=\"%d\" height=\"%d\" fill=\"#FFFFFF\" />\n", target.width, target.height
-        ));
+                "<rect width=\"%d\" height=\"%d\" fill=\"#FFFFFF\" />\n", target.width, target.height));
+    }
+
+    public void setListener(OptimizationListener listener) {
+        this.listener = listener;
+    }
+
+    public void stop() {
+        this.running = false;
+        if (executor != null && !executor.isShutdown()) {
+            executor.shutdownNow();
+        }
     }
 
     public void run(File outputFile) throws IOException, InterruptedException, ExecutionException {
         long startTime = System.currentTimeMillis();
-        System.out.println("Starting processing: " + numShapes + " shapes (" + mode + ") with " + numWorkers + " workers.");
+
+        if (listener != null) {
+            listener.onStart(config.numShapes(), config.mode(), config.numWorkers());
+        }
 
         // Reusable buffer for the final commit to the canvas
         ScanlineBuffer commitBuffer = new ScanlineBuffer(target.height);
 
-        for (int i = 0; i < numShapes; i++) {
+        for (int i = 0; i < config.numShapes(); i++) {
+            if (!running)
+                break;
+
             // 1. Define the tasks for this step
             List<Callable<ShapeResult>> tasks = new ArrayList<>();
-            for (int w = 0; w < numWorkers; w++) {
+            for (int w = 0; w < config.numWorkers(); w++) {
                 tasks.add(createWorkerTask());
             }
 
@@ -93,8 +108,10 @@ public class PrimitiveRunner {
                 // Append to SVG string builder
                 appendSvg(bestResult);
 
-                System.out.printf("Shape %d/%d added. Score Delta: %d. Time: %dms%n",
-                        (i + 1), numShapes, bestResult.energyDelta(), (System.currentTimeMillis() - startTime));
+                if (listener != null) {
+                    listener.onShapeCommitted(i + 1, config.numShapes(), bestResult,
+                            System.currentTimeMillis() - startTime, current);
+                }
             }
         }
 
@@ -106,8 +123,9 @@ public class PrimitiveRunner {
         File svgFile = new File(outputFile.getParent(), outputFile.getName().replace(".png", ".svg"));
         saveSvg(svgFile);
 
-        System.out.println("Done! Saved PNG to " + outputFile.getAbsolutePath());
-        System.out.println("Done! Saved SVG to " + svgFile.getAbsolutePath());
+        if (listener != null) {
+            listener.onComplete(outputFile, svgFile);
+        }
     }
 
     private void appendSvg(ShapeResult result) {
@@ -133,32 +151,48 @@ public class PrimitiveRunner {
             ThreadLocalRandom rnd = ThreadLocalRandom.current();
 
             Shape randomShape;
-            Mode currentMode = mode;
+            Mode currentMode = config.mode();
 
             // If COMBO, pick a random specific mode for this shape
+            // If COMBO, pick a random specific mode for this shape
             if (currentMode == Mode.COMBO) {
-                int pick = rnd.nextInt(5);
-                if (pick == 0) currentMode = Mode.TRIANGLE;
-                else if (pick == 1) currentMode = Mode.LINE;
-                else if (pick == 2) currentMode = Mode.BEZIER;
-                else if (pick == 3) currentMode = Mode.RECT;
-                else currentMode = Mode.POLYLINE;
+                int pick = rnd.nextInt(6);
+                if (pick == 0)
+                    currentMode = Mode.TRIANGLE;
+                else if (pick == 1)
+                    currentMode = Mode.LINE;
+                else if (pick == 2)
+                    currentMode = Mode.BEZIER;
+                else if (pick == 3)
+                    currentMode = Mode.RECT;
+                else if (pick == 4)
+                    currentMode = Mode.POLYLINE;
+                else
+                    currentMode = Mode.ELLIPSE;
             }
 
             if (currentMode == Mode.TRIANGLE) {
                 Triangle t = new Triangle();
-                t.x1 = rnd.nextDouble(target.width); t.y1 = rnd.nextDouble(target.height);
-                t.x2 = rnd.nextDouble(target.width); t.y2 = rnd.nextDouble(target.height);
-                t.x3 = rnd.nextDouble(target.width); t.y3 = rnd.nextDouble(target.height);
+                t.x1 = rnd.nextDouble(target.width);
+                t.y1 = rnd.nextDouble(target.height);
+                t.x2 = rnd.nextDouble(target.width);
+                t.y2 = rnd.nextDouble(target.height);
+                t.x3 = rnd.nextDouble(target.width);
+                t.y3 = rnd.nextDouble(target.height);
                 randomShape = t;
             } else if (currentMode == Mode.LINE) {
-                double x1 = rnd.nextDouble(target.width); double y1 = rnd.nextDouble(target.height);
-                double x2 = rnd.nextDouble(target.width); double y2 = rnd.nextDouble(target.height);
+                double x1 = rnd.nextDouble(target.width);
+                double y1 = rnd.nextDouble(target.height);
+                double x2 = rnd.nextDouble(target.width);
+                double y2 = rnd.nextDouble(target.height);
                 randomShape = new Line(x1, y1, x2, y2, 1 + rnd.nextDouble(8));
             } else if (currentMode == Mode.BEZIER) {
-                double x1 = rnd.nextDouble(target.width); double y1 = rnd.nextDouble(target.height);
-                double cx = rnd.nextDouble(target.width); double cy = rnd.nextDouble(target.height);
-                double x2 = rnd.nextDouble(target.width); double y2 = rnd.nextDouble(target.height);
+                double x1 = rnd.nextDouble(target.width);
+                double y1 = rnd.nextDouble(target.height);
+                double cx = rnd.nextDouble(target.width);
+                double cy = rnd.nextDouble(target.height);
+                double x2 = rnd.nextDouble(target.width);
+                double y2 = rnd.nextDouble(target.height);
                 randomShape = new QuadraticBezier(x1, y1, cx, cy, x2, y2, 1 + rnd.nextDouble(8));
             } else if (currentMode == Mode.RECT) {
                 // Start with a random small-ish rectangle
@@ -168,7 +202,7 @@ public class PrimitiveRunner {
                 double y = rnd.nextDouble(target.height);
                 double angle = rnd.nextDouble(360);
                 randomShape = new RotatedRectangle(x, y, w, h, angle);
-            } else { // POLYLINE
+            } else if (currentMode == Mode.POLYLINE) {
                 // Start with a random 4-point polyline
                 Polyline p = new Polyline(4);
                 for (int i = 0; i < 4; i++) {
@@ -177,6 +211,13 @@ public class PrimitiveRunner {
                 }
                 p.width = 1 + rnd.nextDouble(4);
                 randomShape = p;
+            } else { // ELLIPSE
+                double x = rnd.nextDouble(target.width);
+                double y = rnd.nextDouble(target.height);
+                double rx = 16 + rnd.nextDouble(32);
+                double ry = 16 + rnd.nextDouble(32);
+                double angle = rnd.nextDouble(360);
+                randomShape = new Ellipse(x, y, rx, ry, angle);
             }
 
             // Run Hill Climbing optimization (1000 mutations per shape)
