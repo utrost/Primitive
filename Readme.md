@@ -180,4 +180,6 @@ src/main/java/org/trostheide/primitive/
 
 ## **License**
 
-MIT License (Ported from fogleman/primitive)
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+
+Original work by Michael Fogleman ([fogleman/primitive](https://github.com/fogleman/primitive)) under MIT License.
