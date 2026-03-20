@@ -4,7 +4,9 @@ All notable changes to Primitive (Java Port) will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.0.0] — 2026-03-20
+
+Initial public release.
 
 ### Added
 - CONTRIBUTING.md
