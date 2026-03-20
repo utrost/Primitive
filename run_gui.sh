@@ -40,4 +40,4 @@ fi
 
 echo "Launching GUI..."
 # Run with Vector API module enabled
-"$JAVA_CMD" --add-modules jdk.incubator.vector -cp target/primitive-1.0-SNAPSHOT.jar org.trostheide.primitive.gui.PrimitiveFrame
+"$JAVA_CMD" --add-modules jdk.incubator.vector -cp "target/primitive-1.0-SNAPSHOT.jar:target/lib/*" org.trostheide.primitive.gui.PrimitiveFrame

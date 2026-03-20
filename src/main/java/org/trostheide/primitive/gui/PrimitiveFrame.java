@@ -261,16 +261,34 @@ public class PrimitiveFrame extends JFrame {
         });
     }
 
-    private void openImage() {
-        JFileChooser chooser = new JFileChooser();
-        chooser.setCurrentDirectory(new File(System.getProperty("user.home")));
-        chooser.setDialogTitle("Open Image");
-        chooser.setFileFilter(new FileNameExtensionFilter("Image files (PNG, JPG, BMP, GIF)", "png", "jpg", "jpeg", "bmp", "gif"));
-        chooser.setAcceptAllFileFilterUsed(true);
+    private static boolean isMacOS() {
+        return System.getProperty("os.name", "").toLowerCase().contains("mac");
+    }
 
-        int result = chooser.showOpenDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
-            loadFile(chooser.getSelectedFile());
+    private void openImage() {
+        if (isMacOS()) {
+            FileDialog fd = new FileDialog(this, "Open Image", FileDialog.LOAD);
+            fd.setDirectory(System.getProperty("user.home"));
+            fd.setFilenameFilter((dir, name) -> {
+                String lower = name.toLowerCase();
+                return lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")
+                        || lower.endsWith(".bmp") || lower.endsWith(".gif");
+            });
+            fd.setVisible(true);
+            if (fd.getFile() != null) {
+                loadFile(new File(fd.getDirectory(), fd.getFile()));
+            }
+        } else {
+            JFileChooser chooser = new JFileChooser();
+            chooser.setCurrentDirectory(new File(System.getProperty("user.home")));
+            chooser.setDialogTitle("Open Image");
+            chooser.setFileFilter(new FileNameExtensionFilter("Image files (PNG, JPG, BMP, GIF)", "png", "jpg", "jpeg", "bmp", "gif"));
+            chooser.setAcceptAllFileFilterUsed(true);
+
+            int result = chooser.showOpenDialog(this);
+            if (result == JFileChooser.APPROVE_OPTION) {
+                loadFile(chooser.getSelectedFile());
+            }
         }
     }
 
@@ -305,15 +323,29 @@ public class PrimitiveFrame extends JFrame {
             return;
         }
 
-        JFileChooser chooser = new JFileChooser();
-        chooser.setCurrentDirectory(new File(System.getProperty("user.home")));
-        chooser.setSelectedFile(new File("output.png"));
-        chooser.setDialogTitle("Save Generated Image");
-        chooser.setFileFilter(new FileNameExtensionFilter("PNG Image", "png"));
+        File file = null;
+        if (isMacOS()) {
+            FileDialog fd = new FileDialog(this, "Save Generated Image", FileDialog.SAVE);
+            fd.setDirectory(System.getProperty("user.home"));
+            fd.setFile("output.png");
+            fd.setVisible(true);
+            if (fd.getFile() != null) {
+                file = new File(fd.getDirectory(), fd.getFile());
+            }
+        } else {
+            JFileChooser chooser = new JFileChooser();
+            chooser.setCurrentDirectory(new File(System.getProperty("user.home")));
+            chooser.setSelectedFile(new File("output.png"));
+            chooser.setDialogTitle("Save Generated Image");
+            chooser.setFileFilter(new FileNameExtensionFilter("PNG Image", "png"));
 
-        int result = chooser.showSaveDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
-            File file = chooser.getSelectedFile();
+            int result = chooser.showSaveDialog(this);
+            if (result == JFileChooser.APPROVE_OPTION) {
+                file = chooser.getSelectedFile();
+            }
+        }
+
+        if (file != null) {
             try {
                 lastGeneratedImage.save(file);
 
